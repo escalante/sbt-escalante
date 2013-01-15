@@ -1,4 +1,6 @@
-import EscalanteKeys._
+import sbt._
+import sbt.Keys._
+import io.escalante.sbt.EscalantePlugin._
 import org.jboss.shrinkwrap.api.ShrinkWrap
 import org.jboss.shrinkwrap.api.spec.WebArchive
 import org.yaml.snakeyaml.Yaml

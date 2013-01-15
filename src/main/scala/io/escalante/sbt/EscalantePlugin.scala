@@ -1,4 +1,4 @@
-// TODO: Missing package...
+package io.escalante.sbt
 
 import collection.JavaConversions._
 import java.util.jar.JarFile

@@ -1,10 +1,12 @@
+import sbt._
+import sbt.Keys._
 import ScriptedPlugin._
 
 sbtPlugin := true
 
 name := "sbt-escalante"
 
-organization := "io.escalante"
+organization := "io.escalante.sbt"
 
 version := "0.1.0-SNAPSHOT"
 
@@ -33,3 +35,13 @@ scriptedBufferLog := false
 
 // Tests require more resources than those by default
 scriptedLaunchOpts ++= Seq("-Xmx1024M", "-XX:MaxPermSize=256M")
+
+publishTo <<= version { (v: String) =>
+  val nexus = "https://repository.jboss.org/nexus/"
+  if (v.trim.endsWith("SNAPSHOT"))
+    Some("JBoss Snapshots" at nexus + "content/repositories/snapshots")
+  else
+    Some("JBoss Releases"  at nexus + "service/local/staging/deploy/maven2")
+}
+
+credentials += Credentials(Path.userHome / ".ivy2" / ".credentials")
