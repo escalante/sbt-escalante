@@ -12,7 +12,6 @@ resolvers += "JBoss repository" at "http://repository.jboss.org/nexus/content/gr
 
 resolvers += "Project Odd repository" at "http://repository-projectodd.forge.cloudbees.com/upstream/"
 
-// TODO: Add excludes where necessary
 libraryDependencies ++= Seq(
 	"org.jboss.shrinkwrap" % "shrinkwrap-api" % "1.0.1",
 	"org.jboss.shrinkwrap" % "shrinkwrap-impl-base" % "1.0.1",
@@ -23,7 +22,8 @@ libraryDependencies ++= Seq(
    "org.jboss.arquillian.core" % "arquillian-core-impl-base" % "1.0.0.Final",
    "org.jboss.arquillian.container" % "arquillian-container-spi" % "1.0.0.Final",
    "org.jboss.arquillian.container" % "arquillian-container-impl-base" % "1.0.0.Final",
-   "org.jboss.arquillian.test" % "arquillian-test-impl-base" % "1.0.0.Final"
+   "org.jboss.arquillian.test" % "arquillian-test-impl-base" % "1.0.0.Final",
+   "org.yaml" % "snakeyaml" % "1.8"
 )
 
 ScriptedPlugin.scriptedSettings
@@ -33,6 +33,3 @@ scriptedBufferLog := false
 
 // Tests require more resources than those by default
 scriptedLaunchOpts ++= Seq("-Xmx1024M", "-XX:MaxPermSize=256M")
-
-// To run all tests, execute: 'scripted'
-// To run an individual test, execute: 'scripted sbt-escalante/default-lift-war'

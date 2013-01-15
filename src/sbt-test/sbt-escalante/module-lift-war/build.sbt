@@ -1,4 +1,5 @@
 import EscalanteKeys._
+import java.util
 import org.jboss.shrinkwrap.api.ShrinkWrap
 import org.jboss.shrinkwrap.api.spec.WebArchive
 import org.yaml.snakeyaml.Yaml
@@ -8,20 +9,23 @@ version := "0.1"
 
 escalanteSettings
 
-liftWarName in liftWar := "named.war"
+scalaVersion := "2.10.0"
 
-scalaVersion := "2.9.1"
+liftWarName in liftWar := "module-lift.war"
 
-liftVersion in liftWar := Some("2.4")
+liftVersion in liftWar := Some("2.5-M4")
 
-libraryDependencies <+= (liftVersion in liftWar) { lv: Option[String] =>
-  "net.liftweb" %% "lift-webkit" % lv.get % "provided"
+libraryDependencies <++= (liftVersion in liftWar) { lv: Option[String] => Seq(
+    "net.liftweb" %% "lift-webkit" % lv.get % "provided",
+    "net.liftweb" %% "lift-mapper" % lv.get % "provided",
+    "net.liftweb" %% "lift-jpa" % lv.get % "provided"
+  )
 }
 
 TaskKey[Unit]("check") <<= (target) map { (target) =>
   // 1. Open war file and print contents
   val war = ShrinkWrap.createFromZipFile(
-      classOf[WebArchive], target / "named.war")
+      classOf[WebArchive], target / "module-lift.war")
   val separator = System.getProperty("line.separator")
   println("War contents: %s%s".format(separator,
     war.getContent.values().mkString(separator)))
@@ -38,11 +42,17 @@ TaskKey[Unit]("check") <<= (target) map { (target) =>
   val liftDescriptor = descriptor.get("lift")
       .asInstanceOf[java.util.Map[String, Object]]
   val liftVersion = liftDescriptor.get("version").toString
-  assert (liftVersion == "2.4", "Unexpected version: " + liftVersion)
+  assert (liftVersion == "2.5-M4", "Unexpected Lift version: " + liftVersion)
   assert (descriptor.containsKey("scala"))
   val scalaDescriptor = descriptor.get("scala")
-    .asInstanceOf[java.util.Map[String, Object]]
+      .asInstanceOf[java.util.Map[String, Object]]
   val scalaVersion = scalaDescriptor.get("version").toString
-  assert (scalaVersion == "2.9.1",
-    "Unexpected Scala version: " + scalaVersion)
+  assert (scalaVersion == "2.10.0",
+      "Unexpected Scala version: " + scalaVersion)
+  // 4. Check extra modules
+  assert (liftDescriptor.containsKey("modules"))
+  val liftModules = asScalaBuffer(
+    liftDescriptor.get("modules").asInstanceOf[util.List[String]]).toSeq
+  assert (liftModules == List("mapper", "jpa"),
+      "Unexpected Lift modules: " + liftModules)
 }

@@ -1,0 +1,6 @@
+# check if the file gets created
+> escalante-lift-war
+$ exists target/module-lift.war
+
+# check the contents of the war
+> check

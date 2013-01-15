@@ -9,14 +9,13 @@ import org.jboss.arquillian.core.impl.loadable.LoadableExtensionLoader
 import org.jboss.arquillian.core.spi.{Manager, ManagerBuilder}
 import org.jboss.as.controller.client.helpers.standalone.ServerDeploymentHelper
 import org.jboss.as.controller.client.ModelControllerClient
-import org.jboss.shrinkwrap.api.asset.{StringAsset, Asset}
+import org.jboss.shrinkwrap.api.asset.StringAsset
 import sbt._
 import org.jboss.shrinkwrap.api.exporter.ZipExporter
 import org.jboss.shrinkwrap.api.ShrinkWrap
 import org.jboss.shrinkwrap.api.spec.WebArchive
 import scala.Some
 import tools.nsc.io.Directory
-import xml.Elem
 import java.io.{OutputStream, InputStream, FileOutputStream, FileInputStream}
 
 object EscalantePlugin extends Plugin {
@@ -58,6 +57,8 @@ object EscalantePlugin extends Plugin {
     liftVersion := None,
     // Default web app resources directory
     liftWebAppResources in liftWar <<= Keys.sourceDirectory / "main/webapp",
+    // Scala version
+    Keys.scalaVersion in liftWar <<= Keys.scalaVersion,
     // Build Escalante-friendly Lift war
     liftWar <<= (Keys.test in liftWar,
         Keys.classDirectory in liftWar,
@@ -65,9 +66,10 @@ object EscalantePlugin extends Plugin {
         liftOutputPath in liftWar,
         Keys.libraryDependencies in liftWar,
         liftVersion in liftWar,
-        liftWebAppResources in liftWar) map {
-      (test, classDir, warName, out, deps, liftVersion, webAppDir) =>
-            buildLiftWar(classDir, warName, out, deps, liftVersion, webAppDir)
+        liftWebAppResources in liftWar,
+        Keys.scalaVersion in liftWar) map {
+      (test, classDir, warName, out, deps, liftVersion, webAppDir, scalaVersion) =>
+            buildLiftWar(classDir, warName, out, deps, liftVersion, webAppDir, scalaVersion)
     },
     escalanteVersion := "0.2.0-SNAPSHOT",
     // Escalante run should be executed after lift was has been generated
@@ -81,37 +83,84 @@ object EscalantePlugin extends Plugin {
 
   private def buildLiftWar(classDir: File, warName: String,
         targetWar: File, deps: Seq[ModuleID],
-        liftVersion: Option[String], webAppDir: File): File = {
+        liftVersionOverride: Option[String], webAppDir: File,
+        scalaVersion: String): File = {
     // Use plugin's classloader to load ShrinkWrap extensions
     val pluginClassLoader = classOf[ShrinkWrap].getClassLoader
     println("ShrinkWrap class loader is: " + pluginClassLoader)
-    println("Lift version override: " + liftVersion)
+    println("Lift version override: " + liftVersionOverride)
 
     withClassLoader(pluginClassLoader) { Unit =>
       val war = ShrinkWrap.create(classOf[WebArchive], warName)
       addWebInfClasses(war, classDir)
       addWebResources(war, webAppDir)
-      val liftXml = liftVersion match {
-        case Some(v) => <lift-app version={v} />
+      val extraModules = extractExtraModules(deps)
+      val liftVersion = liftVersionOverride match {
+        case Some(version) => liftVersionOverride
         case None =>
-          // Inspect libraries and generate Escalante descriptor
-          deps.filter(_.organization == "net.liftweb").headOption match {
-            case Some(liftArtifact) =>
-                <lift-app version={liftArtifact.revision} />
-            case None =>
-              // TODO: Temporary, must handle other Escalante compatible apps
-                <lift-app />
-          }
+          // Inspect libraries dependencies and retrieve Lift version
+          deps.filter(_.organization == "net.liftweb")
+              .headOption.map(_.revision)
       }
-      war.addAsWebResource(xml(liftXml), "WEB-INF/lift.xml")
 
+      val descriptor = getDescriptor(liftVersion, scalaVersion, extraModules)
+      war.addAsWebResource(new StringAsset(descriptor), "META-INF/escalante.yml")
+      print("""Generated Escalante descriptor:
+          | %s""".format(descriptor).stripMargin)
+      println() // Extra line to clear end of descriptor white space
       println("Exporting " + targetWar)
       war.as(classOf[ZipExporter]).exportTo(targetWar, true)
       targetWar
     }
   }
 
-  private def xml(e: Elem): Asset = new StringAsset(e.toString())
+  private def extractExtraModules(deps: Seq[ModuleID]): Seq[String] = {
+    deps.filter(_.organization == "net.liftweb")
+      .filter(_.name != "lift-webkit")
+      .map(_.name.substring("lift-".length)).toSeq
+  }
+
+  private def getDescriptor(
+      liftVersion: Option[String],
+      scalaVersion: String,
+      extraModules: Seq[String]): String = {
+    val separator = System.getProperty("line.separator")
+    val modulesAsString = extraModules.map { moduleName =>
+      """|     - %s""".format(moduleName).stripMargin
+    }
+
+    (liftVersion, extraModules) match {
+      case (None, Nil) =>
+        """
+          | scala:
+          |   version: %s
+        """.format(scalaVersion).stripMargin
+      case (Some(lv), Nil) =>
+        """
+          | scala:
+          |   version: %s
+          | lift:
+          |   version: %s
+        """.format(scalaVersion, lv).stripMargin
+      case (None, List(_*)) =>
+        """
+          | scala:
+          |   version: %s
+          | lift:
+          |   modules: %s
+        """.format(scalaVersion,
+          modulesAsString.mkString).stripMargin
+      case (Some(lv), List(_*)) =>
+        """
+          | scala:
+          |   version: %s
+          | lift:
+          |   version: %s
+          |   modules: %s
+        """.format(scalaVersion, lv,
+          separator + modulesAsString.mkString(separator)).stripMargin
+    }
+  }
 
   private def addWebResources(war: WebArchive, webAppDir: File) {
     println("Web resources dir is: " + webAppDir)

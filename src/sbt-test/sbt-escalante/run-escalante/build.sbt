@@ -1,9 +1,9 @@
 import EscalanteKeys._
 import org.jboss.shrinkwrap.api.ShrinkWrap
 import org.jboss.shrinkwrap.api.spec.WebArchive
-import scala.xml.XML
 import java.net.URL
 import java.io.{BufferedInputStream, StringWriter}
+import scala.collection.JavaConversions._
 
 version := "0.1"
 
@@ -23,9 +23,13 @@ libraryDependencies ++= Seq(
 liftVersion in liftWar := Some("2.4")
 
 TaskKey[Unit]("check") <<= (target) map { (target) =>
-  // Check contents of war file
+  // 1. Open war file and print contents
   val war = ShrinkWrap.createFromZipFile(
       classOf[WebArchive], target / "helloworld-lift.war")
+  val separator = System.getProperty("line.separator")
+  println("War contents: %s%s".format(separator,
+    war.getContent.values().mkString(separator)))
+  // 2. Check classes and descriptor present
   assert(war.contains("WEB-INF/classes/bootstrap/liftweb/Boot.class"),
       "Boot class not present" + war.getContent())
   assert(war.contains("WEB-INF/classes/io/escalante/sbt/lift/helloworld/snippet/HelloWorld.class"),
@@ -33,6 +37,7 @@ TaskKey[Unit]("check") <<= (target) map { (target) =>
   assert(war.contains("index.html"), "index.html not present" + war.getContent())
   assert(war.contains("templates-hidden/default.html"),
       "templates-hidden/default.html not present" + war.getContent())
+  // 3. Check HTTP request
   val writer = new StringWriter
   try {
     val url = new URL("http://localhost:8080/helloworld-lift/index.html")
