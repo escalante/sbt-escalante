@@ -103,11 +103,18 @@ object EscalantePlugin extends Plugin {
               .headOption.map(_.revision)
       }
 
-      val descriptor = getDescriptor(liftVersion, scalaVersion, extraModules)
-      war.addAsWebResource(new StringAsset(descriptor), "META-INF/escalante.yml")
-      print("""Generated Escalante descriptor:
-          | %s""".format(descriptor).stripMargin)
-      println() // Extra line to clear end of descriptor white space
+      val srcDescriptor = new File(webAppDir, "META-INF/escalante.yml")
+      println("Check if Escalante descriptor present in: %s".format(srcDescriptor))
+      if (srcDescriptor.exists()) {
+        println("Using Escalante descriptor in: %s".format(srcDescriptor))
+      } else {
+        val descriptor = getDescriptor(liftVersion, scalaVersion, extraModules)
+        war.addAsWebResource(new StringAsset(descriptor), "META-INF/escalante.yml")
+        print("""Generated Escalante descriptor:
+                | %s""".format(descriptor).stripMargin)
+        println() // Extra line to clear end of descriptor white space
+      }
+
       println("Exporting " + targetWar)
       war.as(classOf[ZipExporter]).exportTo(targetWar, true)
       targetWar
