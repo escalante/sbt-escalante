@@ -45,3 +45,32 @@ publishTo <<= version { (v: String) =>
 }
 
 credentials += Credentials(Path.userHome / ".ivy2" / ".credentials")
+
+publishMavenStyle := true
+
+publishArtifact in Test := false
+
+pomIncludeRepository := { x => false }
+
+pomExtra := (
+  <url>http://escalante.io</url>
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <scm>
+    <connection>scm:git:git://github.com/escalante/sbt-escalante.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/escalante/sbt-escalante.git</developerConnection>
+    <url>http://github.com/escalante/sbt-escalante</url>
+  </scm>
+  <developers>
+    <developer>
+      <id>escalante-team</id>
+      <name>The Escalante Team</name>
+      <email>escalante-dev@escalante.io</email>
+    </developer>
+  </developers>
+)
