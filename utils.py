@@ -295,8 +295,7 @@ class Git(object):
         if (self.settings.non_interactive):
             return 'master'
         else:
-            return
-            map(self.clean, filter(self.current, self.run_git('branch')))[0]
+            return map(self.clean, filter(self.current, self.run_git('branch')))[0]
 
     def cleanup(self):
         '''Cleans up any temporary branches created'''
