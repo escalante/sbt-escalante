@@ -66,7 +66,7 @@ where it will deploy the war archive.
 
 The following options are configurable:
 
-* `escalanteVersion := "0.2.0-SNAPSHOT"`:
+* `escalanteVersion := "0.2.0"`
 defines the Escalante version in which to run the Lift application
 (default value shown).
 
