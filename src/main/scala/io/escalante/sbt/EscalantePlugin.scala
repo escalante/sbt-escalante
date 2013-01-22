@@ -198,9 +198,9 @@ object EscalantePlugin extends Plugin {
       + "/standalone/configuration/standalone.xml")
 
     if (!jbossCfg.exists())
-      unzip(new File(home + "/.ivy2/cache/io.escalante/escalante-dist/zips/" +
-        "escalante-dist-0.2.0-SNAPSHOT.zip/"),
-        new File(tmpDir))
+      unzip(new File(
+        "%s/.ivy2/cache/io.escalante/escalante-dist/zips/escalante-dist-%s.zip/"
+          .format(home, version)), new File(tmpDir))
 
     // TODO: ALR, why not use 'jboss.home.dir' ? ServerEnvironment.HOME_DIR
     System.setProperty("jboss.home", jbossHomeDir.getAbsolutePath)

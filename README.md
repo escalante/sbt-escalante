@@ -45,16 +45,13 @@ webapp resource, it will be generated from the build metadata information.
 
 The following options are configurable:
 
-* `liftWarName`: defines the name of the WAR file to generate.
-Default is: `ROOT.war`.
-* `liftOutputPath`: defines the location where the WAR file will be generated.
-Default is: `target/<liftWarName value>`
-* `liftVersion`: defines the Lift version of this application, which is
+* `liftWarName := "ROOT.war"`:
+defines the name of the WAR file to generate (default value shown).
+* `liftVersion`:
+defines the Lift version of this application, which is
 primarily used to populate the correct Lift version in the generated
 `META-INF/escalante.yml` descriptor. The default value is extracted from the
 Lift dependencies defined in the build.
-* `liftWebAppResources`: defines the folder containing web app resources.
-Default value is `src/main/webapp`
 
 ### Deploy and Run a Escalante Lift war
 
@@ -69,8 +66,9 @@ where it will deploy the war archive.
 
 The following options are configurable:
 
-* `escalanteVersion`: defines the Escalante version in which to run the Lift
-application. By default, the Escalante version used is 0.2.0-SNAPSHOT.
+* `escalanteVersion := "0.2.0-SNAPSHOT"`:
+defines the Escalante version in which to run the Lift application
+(default value shown).
 
 ## Contributor Guide
 
