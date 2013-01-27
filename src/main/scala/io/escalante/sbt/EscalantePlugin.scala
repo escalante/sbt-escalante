@@ -192,7 +192,7 @@ object EscalantePlugin extends Plugin {
     val tmpDir = System.getProperty("java.io.tmpdir")
     val home = System.getProperty("user.home")
     val escalanteVersion = "escalante-" + version
-    val jbossHome = tmpDir + escalanteVersion
+    val jbossHome = tmpDir + "/" + escalanteVersion
     val jbossHomeDir = new File(jbossHome)
     val jbossCfg = new File(jbossHome
       + "/standalone/configuration/standalone.xml")
