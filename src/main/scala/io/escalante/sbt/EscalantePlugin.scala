@@ -71,7 +71,7 @@ object EscalantePlugin extends Plugin {
       (test, classDir, warName, out, deps, liftVersion, webAppDir, scalaVersion) =>
             buildLiftWar(classDir, warName, out, deps, liftVersion, webAppDir, scalaVersion)
     },
-    escalanteVersion := "0.2.0-SNAPSHOT",
+    escalanteVersion := "0.2.0",
     // Escalante run should be executed after lift was has been generated
     liftWar in escalanteRun <<= (liftWar in liftWar),
     escalanteRun <<= (liftWar in escalanteRun,
