@@ -14,7 +14,6 @@ import sbt._
 import org.jboss.shrinkwrap.api.exporter.ZipExporter
 import org.jboss.shrinkwrap.api.ShrinkWrap
 import org.jboss.shrinkwrap.api.spec.WebArchive
-import scala.Some
 import tools.nsc.io.Directory
 import java.io.{OutputStream, InputStream, FileOutputStream, FileInputStream}
 
@@ -29,6 +28,7 @@ object EscalantePlugin extends Plugin {
 
     val escalanteVersion = SettingKey[String]("escalante-version")
     val escalanteRun = TaskKey[Unit]("escalante-run")
+    val escalanteCopyDependencies = TaskKey[Unit]("escalante-copy-dependencies")
   }
 
   import EscalanteKeys._
@@ -48,6 +48,11 @@ object EscalantePlugin extends Plugin {
       (Keys.target in liftWar, liftWarName in liftWar) {
         (t, s) => t / s
       },
+    // Default copy-dependencies output path is target/lib
+    liftOutputPath in escalanteCopyDependencies <<= (Keys.target in liftWar) { t => t / "lib"} ,
+    // Copies runtime library-dependencies for packaging in war
+    escalanteCopyDependencies in liftWar <<= (Keys.update, liftOutputPath in escalanteCopyDependencies) map { (updateReport, target) =>
+      copyDependencies(updateReport, target) } ,
     // Lift assembly should be executed after test
     Keys.test in liftWar <<= (Keys.test in sbt.Test),
     // Check library dependencies to figure out building instructions
@@ -61,6 +66,8 @@ object EscalantePlugin extends Plugin {
     Keys.scalaVersion in liftWar <<= Keys.scalaVersion,
     // Build Escalante-friendly Lift war
     liftWar <<= (Keys.test in liftWar,
+        escalanteCopyDependencies in liftWar,
+        liftOutputPath in escalanteCopyDependencies,
         Keys.classDirectory in liftWar,
         liftWarName in liftWar,
         liftOutputPath in liftWar,
@@ -68,8 +75,8 @@ object EscalantePlugin extends Plugin {
         liftVersion in liftWar,
         liftWebAppResources in liftWar,
         Keys.scalaVersion in liftWar) map {
-      (test, classDir, warName, out, deps, liftVersion, webAppDir, scalaVersion) =>
-            buildLiftWar(classDir, warName, out, deps, liftVersion, webAppDir, scalaVersion)
+      (test, copyDeps, libsDir, classDir, warName, out, deps, liftVersion, webAppDir, scalaVersion) =>
+            buildLiftWar(classDir, libsDir, warName, out, deps, liftVersion, webAppDir, scalaVersion)
     },
     escalanteVersion := "0.2.0",
     // Escalante run should be executed after lift was has been generated
@@ -81,7 +88,7 @@ object EscalantePlugin extends Plugin {
     }
   )
 
-  private def buildLiftWar(classDir: File, warName: String,
+  private def buildLiftWar(classDir: File, libsDir: File, warName: String,
         targetWar: File, deps: Seq[ModuleID],
         liftVersionOverride: Option[String], webAppDir: File,
         scalaVersion: String): File = {
@@ -94,6 +101,7 @@ object EscalantePlugin extends Plugin {
       val war = ShrinkWrap.create(classOf[WebArchive], warName)
       addWebInfClasses(war, classDir)
       addWebResources(war, webAppDir)
+      addWebInfLibs(war, libsDir)
       val extraModules = extractExtraModules(deps)
       val liftVersion = liftVersionOverride match {
         case Some(version) => liftVersionOverride
@@ -186,6 +194,20 @@ object EscalantePlugin extends Plugin {
               file.jfile.getPath.substring(classDir.getAbsolutePath.length))
     }
   }
+
+  private def addWebInfLibs(war: WebArchive, libDir: File) {
+    println("Lib dir is: " + libDir)
+    Directory(libDir).deepFiles.foreach { file =>
+      println("Add library: " + file.jfile)
+      war.addAsLibrary(file.jfile)
+    }
+  }
+
+  def copyDependencies(updateReport: UpdateReport, libDir: File) {
+    updateReport.select(configurationFilter("runtime")).foreach((lib) =>
+      if (!lib.getName.contains("scala-library")) IO.copyFile(lib, libDir / lib.getName, preserveLastModified = true))
+  }
+
 
   def runEscalante(version: String, deployment: File) {
     // 1. With the AS7 zip dependency in place, unzip it
