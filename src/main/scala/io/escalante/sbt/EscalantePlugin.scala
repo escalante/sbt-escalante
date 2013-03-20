@@ -19,16 +19,19 @@ import java.io.{OutputStream, InputStream, FileOutputStream, FileInputStream}
 
 object EscalantePlugin extends Plugin {
 
+  final val NotProvidedByServerRegex =
+    "^(?!.*(scala-compiler|scala-library|scalap)).*$".r
+
   object EscalanteKeys {
     val liftWar = TaskKey[File]("escalante-lift-war")
     val liftWarName = SettingKey[String]("escalante-lift-war-name")
     val liftOutputPath = SettingKey[File]("escalante-lift-war-output-path")
     val liftVersion = SettingKey[Option[String]]("escalante-lift-version")
     val liftWebAppResources = SettingKey[File]("escalante-lift-webapp-resources")
+    val liftCopyDependencies = TaskKey[Unit]("escalante-lift-copy-dependencies")
 
     val escalanteVersion = SettingKey[String]("escalante-version")
     val escalanteRun = TaskKey[Unit]("escalante-run")
-    val escalanteCopyDependencies = TaskKey[Unit]("escalante-copy-dependencies")
   }
 
   import EscalanteKeys._
@@ -49,10 +52,11 @@ object EscalantePlugin extends Plugin {
         (t, s) => t / s
       },
     // Default copy-dependencies output path is target/lib
-    liftOutputPath in escalanteCopyDependencies <<= (Keys.target in liftWar) { t => t / "lib"} ,
+    liftOutputPath in liftCopyDependencies <<= (Keys.target in liftWar) { t => t / "lib"} ,
     // Copies runtime library-dependencies for packaging in war
-    escalanteCopyDependencies in liftWar <<= (Keys.update, liftOutputPath in escalanteCopyDependencies) map { (updateReport, target) =>
-      copyDependencies(updateReport, target) } ,
+    liftCopyDependencies in liftWar <<= (Keys.update, liftOutputPath in liftCopyDependencies)  map {
+      (updateReport, target) => copyDependencies(updateReport, target)
+    },
     // Lift assembly should be executed after test
     Keys.test in liftWar <<= (Keys.test in sbt.Test),
     // Check library dependencies to figure out building instructions
@@ -66,8 +70,8 @@ object EscalantePlugin extends Plugin {
     Keys.scalaVersion in liftWar <<= Keys.scalaVersion,
     // Build Escalante-friendly Lift war
     liftWar <<= (Keys.test in liftWar,
-        escalanteCopyDependencies in liftWar,
-        liftOutputPath in escalanteCopyDependencies,
+        liftCopyDependencies in liftWar,
+        liftOutputPath in liftCopyDependencies,
         Keys.classDirectory in liftWar,
         liftWarName in liftWar,
         liftOutputPath in liftWar,
@@ -204,8 +208,12 @@ object EscalantePlugin extends Plugin {
   }
 
   def copyDependencies(updateReport: UpdateReport, libDir: File) {
-    updateReport.select(configurationFilter("runtime")).foreach((lib) =>
-      if (!lib.getName.contains("scala-library")) IO.copyFile(lib, libDir / lib.getName, preserveLastModified = true))
+    updateReport.select(configurationFilter("runtime"))
+      .filter(f => NotProvidedByServerRegex.findFirstIn(f.getName).isDefined)
+      .foreach(f => IO.copyFile(f, libDir / f.getName, preserveLastModified = true))
+
+//    updateReport.select(configurationFilter("runtime")).foreach((lib) =>
+//      if (!lib.getName.contains("scala-library")) IO.copyFile(lib, libDir / lib.getName, preserveLastModified = true))
   }
 
 

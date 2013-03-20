@@ -20,7 +20,7 @@ TaskKey[Unit]("check") <<= (target) map { (target) =>
       classOf[WebArchive], target / "ROOT.war")
   val separator = System.getProperty("line.separator")
   println("War contents: %s%s".format(separator,
-    war.getContent.values().mkString(separator)))
+      war.getContent.values().iterator().map(_.toString).toSeq.sorted.mkString(separator)))
   // 2. Check classes and descriptor present
   assert (war.contains("WEB-INF/classes/Main.class"),
       "Main class not present: " + war.getContent())
@@ -33,6 +33,6 @@ TaskKey[Unit]("check") <<= (target) map { (target) =>
   assert (descriptor.containsKey("lift"))
   val liftDescriptor = descriptor.get("lift")
       .asInstanceOf[java.util.Map[String, Object]]
-  val liftVersion = liftDescriptor.get("version")
+  val liftVersion = liftDescriptor.get("version").toString
   assert (liftVersion.equals("2.5-M3"), "Unexpected version: " + liftVersion)
 }
