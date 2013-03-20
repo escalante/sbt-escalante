@@ -31,7 +31,7 @@ TaskKey[Unit]("check") <<= (target) map { (target) =>
       classOf[WebArchive], target / "module-lift.war")
   val separator = System.getProperty("line.separator")
   println("War contents: %s%s".format(separator,
-    war.getContent.values().mkString(separator)))
+      war.getContent.values().iterator().map(_.toString).toSeq.sorted.mkString(separator)))
   // 2. Check classes and descriptor present
   assert(war.contains("WEB-INF/classes/helloworld/Main.class"),
       "Main class not present" + war.getContent())
