@@ -108,28 +108,9 @@ def update_version(base_dir, version):
     require_version_update = get_build_sbt_files_to_patch(base_dir)
     require_version_update.insert(0, readme_md)
     update_sbt_plugin_version(version, require_version_update)
-#    for f in require_version_update:
-#        f_in = open(f)
-#        f_out = open(f + ".tmp", "w")
-#        re_version = re.compile('\s*addSbtPlugin\\("io.escalante.sbt"')
-#        try:
-#            for l in f_in:
-#                if re_version.match(l):
-#                    prettyprint("Update %s to version %s"
-#                                % (f, version), Levels.DEBUG)
-#                    f_out.write(
-#                        '    addSbtPlugin("io.escalante.sbt" %% "sbt-escalante" %% "%s")\n'
-#                        % version)
-#                else:
-#                    f_out.write(l)
-#        finally:
-#            f_in.close()
-#            f_out.close()
 
-    require_version_update.insert(0, build_sbt)
-    for f in require_version_update:
-        prettyprint("Rename back %s" % f, Levels.DEBUG)
-        os.rename(f + ".tmp", f)
+    # Rename back build.sbt
+    os.rename(build_sbt + ".tmp", build_sbt)
 
     # Now make sure this goes back into the repository.
     git.commit(require_version_update,
@@ -156,6 +137,8 @@ def update_sbt_plugin_version(version, require_version_update):
         finally:
             f_in.close()
             f_out.close()
+            prettyprint("Rename back %s" % f, Levels.DEBUG)
+            os.rename(f + ".tmp", f)
 
 def update_escalante_version(base_dir, escalante_version):
     os.chdir(base_dir)
@@ -184,20 +167,6 @@ def update_escalante_version(base_dir, escalante_version):
 
     # 2. Update versions in README file
     update_escalante_version_readme(escalante_version, readme_md)
-#    f_in = open(readme_md)
-#    f_out = open(readme_md + ".tmp", "w")
-#    re_esc_version = re.compile('\s*\* `escalanteVersion')
-#    try:
-#        for l in f_in:
-#            if re_esc_version.match(l):
-#                prettyprint("Update to Escalante version %s"
-#                            % escalante_version, Levels.DEBUG)
-#                f_out.write('* `escalanteVersion := "%s"`\n' % escalante_version)
-#            else:
-#                f_out.write(l)
-#    finally:
-#        f_in.close()
-#        f_out.close()
 
     # 3. Update versions in Escalante plugin Scala class
     f_in = open(plugin_scala)
@@ -217,7 +186,6 @@ def update_escalante_version(base_dir, escalante_version):
 
     modified_files = [build_sbt, readme_md, plugin_scala]
     os.rename(build_sbt + ".tmp", build_sbt)
-    os.rename(readme_md + ".tmp", readme_md)
     os.rename(plugin_scala + ".tmp", plugin_scala)
 
     # Now make sure this goes back into the repository.
@@ -242,6 +210,8 @@ def update_escalante_version_readme(escalante_version, readme_md):
     finally:
         f_in.close()
         f_out.close()
+        # Rename back
+        os.rename(readme_md + ".tmp", readme_md)
 
 def get_module_name(pom_file):
     tree = ElementTree()
