@@ -107,6 +107,38 @@ def update_version(base_dir, version):
     # 2. Update SBT plugin versions in test files and README file
     require_version_update = get_build_sbt_files_to_patch(base_dir)
     require_version_update.insert(0, readme_md)
+    update_sbt_plugin_version(version, require_version_update)
+#    for f in require_version_update:
+#        f_in = open(f)
+#        f_out = open(f + ".tmp", "w")
+#        re_version = re.compile('\s*addSbtPlugin\\("io.escalante.sbt"')
+#        try:
+#            for l in f_in:
+#                if re_version.match(l):
+#                    prettyprint("Update %s to version %s"
+#                                % (f, version), Levels.DEBUG)
+#                    f_out.write(
+#                        '    addSbtPlugin("io.escalante.sbt" %% "sbt-escalante" %% "%s")\n'
+#                        % version)
+#                else:
+#                    f_out.write(l)
+#        finally:
+#            f_in.close()
+#            f_out.close()
+
+    require_version_update.insert(0, build_sbt)
+    for f in require_version_update:
+        prettyprint("Rename back %s" % f, Levels.DEBUG)
+        os.rename(f + ".tmp", f)
+
+    # Now make sure this goes back into the repository.
+    git.commit(require_version_update,
+        "'Release Script: update SBT plugin version %s'" % version)
+
+    # And return the next version - currently unused
+    return pieces[0] + '.' + str(int(pieces[1]) + 1) + '.' + '0-SNAPSHOT'
+
+def update_sbt_plugin_version(version, require_version_update):
     for f in require_version_update:
         f_in = open(f)
         f_out = open(f + ".tmp", "w")
@@ -124,18 +156,6 @@ def update_version(base_dir, version):
         finally:
             f_in.close()
             f_out.close()
-
-    require_version_update.insert(0, build_sbt)
-    for f in require_version_update:
-        prettyprint("Rename back %s" % f, Levels.DEBUG)
-        os.rename(f + ".tmp", f)
-
-    # Now make sure this goes back into the repository.
-    git.commit(require_version_update,
-        "'Release Script: update SBT plugin version %s'" % version)
-
-    # And return the next version - currently unused
-    return pieces[0] + '.' + str(int(pieces[1]) + 1) + '.' + '0-SNAPSHOT'
 
 def update_escalante_version(base_dir, escalante_version):
     os.chdir(base_dir)
@@ -163,20 +183,21 @@ def update_escalante_version(base_dir, escalante_version):
         f_out.close()
 
     # 2. Update versions in README file
-    f_in = open(readme_md)
-    f_out = open(readme_md + ".tmp", "w")
-    re_esc_version = re.compile('\s*\* `escalanteVersion')
-    try:
-        for l in f_in:
-            if re_esc_version.match(l):
-                prettyprint("Update %s to Escalante version %s"
-                            % (build_sbt, escalante_version), Levels.DEBUG)
-                f_out.write('* `escalanteVersion := "%s"`\n' % escalante_version)
-            else:
-                f_out.write(l)
-    finally:
-        f_in.close()
-        f_out.close()
+    update_escalante_version_readme(escalante_version, readme_md)
+#    f_in = open(readme_md)
+#    f_out = open(readme_md + ".tmp", "w")
+#    re_esc_version = re.compile('\s*\* `escalanteVersion')
+#    try:
+#        for l in f_in:
+#            if re_esc_version.match(l):
+#                prettyprint("Update to Escalante version %s"
+#                            % escalante_version, Levels.DEBUG)
+#                f_out.write('* `escalanteVersion := "%s"`\n' % escalante_version)
+#            else:
+#                f_out.write(l)
+#    finally:
+#        f_in.close()
+#        f_out.close()
 
     # 3. Update versions in Escalante plugin Scala class
     f_in = open(plugin_scala)
@@ -206,6 +227,21 @@ def update_escalante_version(base_dir, escalante_version):
     # And return the next version - currently unused
     return pieces[0] + '.' + str(int(pieces[1]) + 1) + '.' + '0-SNAPSHOT'
 
+def update_escalante_version_readme(escalante_version, readme_md):
+    f_in = open(readme_md)
+    f_out = open(readme_md + ".tmp", "w")
+    re_esc_version = re.compile('\s*\* `escalanteVersion')
+    try:
+        for l in f_in:
+            if re_esc_version.match(l):
+                prettyprint("Update Escalante version %s"
+                            % escalante_version, Levels.DEBUG)
+                f_out.write('* `escalanteVersion := "%s"`\n' % escalante_version)
+            else:
+                f_out.write(l)
+    finally:
+        f_in.close()
+        f_out.close()
 
 def get_module_name(pom_file):
     tree = ElementTree()
@@ -331,6 +367,19 @@ def release():
         git.push_tags_to_origin()
         git.cleanup()
 
+        # Set master README versions with latest released ones
+        update_sbt_plugin_version(version, ["./README.md"])
+        update_escalante_version_readme(escalante_version, "./README.md")
+
+        git.commit(["./README.md"],
+                   "'Release Script: update README file in master to last released version=%s and escalanteVersion=%s'"
+                   % (version, escalante_version))
+        git.push_master_to_origin()
+    else:
+        prettyprint(
+            "In dry-run mode.  Not pushing tag to remote origin and not removing temp release branch %s." % git.working_branch
+            , Levels.DEBUG)
+
 #        # Update master with next version
 #        next_version = settings.next_version
 #        if next_version is not None:
@@ -339,10 +388,6 @@ def release():
 #            update_version(base_dir, next_version)
 #            git.push_master_to_origin()
 #            prettyprint("Step 4: Complete", Levels.INFO)
-    else:
-        prettyprint(
-            "In dry-run mode.  Not pushing tag to remote origin and not removing temp release branch %s." % git.working_branch
-            , Levels.DEBUG)
 
 
 if __name__ == "__main__":
