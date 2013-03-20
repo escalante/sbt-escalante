@@ -21,7 +21,7 @@ to `project/build.sbt`:
        "Project Odd repository" at "http://repository-projectodd.forge.cloudbees.com/upstream/"
     )
 
-    addSbtPlugin("io.escalante.sbt" % "sbt-escalante" % "0.1.1")
+    addSbtPlugin("io.escalante.sbt" % "sbt-escalante" % "0.1.2")
 
 Now, add the following to your root `build.sbt` file:
 

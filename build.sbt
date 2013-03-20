@@ -8,7 +8,7 @@ name := "sbt-escalante"
 
 organization := "io.escalante.sbt"
 
-version := "0.1.2-SNAPSHOT"
+version := "0.1.2"
 
 resolvers += "JBoss repository" at "http://repository.jboss.org/nexus/content/groups/public/"
 
