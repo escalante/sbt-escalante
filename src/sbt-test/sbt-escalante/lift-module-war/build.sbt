@@ -7,10 +7,9 @@ import org.jboss.shrinkwrap.api.ShrinkWrap
 import org.jboss.shrinkwrap.api.spec.WebArchive
 import org.yaml.snakeyaml.Yaml
 import scala.collection.JavaConversions._
+escalanteSettings
 
 version := "0.1"
-
-escalanteSettings
 
 scalaVersion := "2.10.0"
 
