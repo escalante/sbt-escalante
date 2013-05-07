@@ -1,7 +1,5 @@
 package io.escalante.sbt
 
-import collection.JavaConversions._
-import java.util.jar.JarFile
 import org.jboss.arquillian.container.spi.client.deployment.TargetDescription
 import org.jboss.arquillian.container.spi.ContainerRegistry
 import org.jboss.arquillian.container.spi.event.{StartContainer, SetupContainer}
@@ -15,7 +13,11 @@ import org.jboss.shrinkwrap.api.exporter.ZipExporter
 import org.jboss.shrinkwrap.api.ShrinkWrap
 import org.jboss.shrinkwrap.api.spec.WebArchive
 import tools.nsc.io.Directory
-import java.io.{OutputStream, InputStream, FileOutputStream, FileInputStream}
+import java.io.FileInputStream
+import scala.xml.{Elem, NodeSeq, Node, XML}
+import sbt.File
+import scala.xml.transform.{RuleTransformer, RewriteRule}
+import scala.xml.Node
 
 object EscalantePlugin extends Plugin {
 
@@ -30,8 +32,8 @@ object EscalantePlugin extends Plugin {
     val liftWebAppResources = SettingKey[File]("escalante-lift-webapp-resources")
     val liftCopyDependencies = TaskKey[Unit]("escalante-lift-copy-dependencies")
 
-    val escalanteVersion = SettingKey[String]("escalante-version")
     val escalanteRun = TaskKey[Unit]("escalante-run")
+    val escalanteVersion = SettingKey[String]("escalante-version")
   }
 
   import EscalanteKeys._
@@ -82,8 +84,8 @@ object EscalantePlugin extends Plugin {
       (test, copyDeps, libsDir, classDir, warName, out, deps, liftVersion, webAppDir, scalaVersion) =>
             buildLiftWar(classDir, libsDir, warName, out, deps, liftVersion, webAppDir, scalaVersion)
     },
-    escalanteVersion := "0.2.0",
-    // Escalante run should be executed after lift was has been generated
+    escalanteVersion := "0.3.0-SNAPSHOT",
+    // Escalante run should be executed after lift war has been generated
     liftWar in escalanteRun <<= (liftWar in liftWar),
     escalanteRun <<= (liftWar in escalanteRun,
         escalanteVersion in escalanteRun,
@@ -101,7 +103,7 @@ object EscalantePlugin extends Plugin {
     println("ShrinkWrap class loader is: " + pluginClassLoader)
     println("Lift version override: " + liftVersionOverride)
 
-    withClassLoader(pluginClassLoader) { Unit =>
+    withClassLoader(pluginClassLoader) { () =>
       val war = ShrinkWrap.create(classOf[WebArchive], warName)
       addWebInfClasses(war, classDir)
       addWebResources(war, webAppDir)
@@ -211,26 +213,23 @@ object EscalantePlugin extends Plugin {
     updateReport.select(configurationFilter("runtime"))
       .filter(f => NotProvidedByServerRegex.findFirstIn(f.getName).isDefined)
       .foreach(f => IO.copyFile(f, libDir / f.getName, preserveLastModified = true))
-
-//    updateReport.select(configurationFilter("runtime")).foreach((lib) =>
-//      if (!lib.getName.contains("scala-library")) IO.copyFile(lib, libDir / lib.getName, preserveLastModified = true))
   }
-
 
   def runEscalante(version: String, deployment: File) {
     // 1. With the AS7 zip dependency in place, unzip it
-    val tmpDir = System.getProperty("java.io.tmpdir")
+    val tmpDir = new File(System.getProperty("java.io.tmpdir"))
     val home = System.getProperty("user.home")
     val escalanteVersion = "escalante-" + version
-    val jbossHome = tmpDir + "/" + escalanteVersion
-    val jbossHomeDir = new File(jbossHome)
-    val jbossCfg = new File(jbossHome
-      + "/standalone/configuration/standalone.xml")
+    val jbossHomeDir = new File(tmpDir, escalanteVersion)
+    val jbossCfg = new File(jbossHomeDir, "/standalone/configuration/standalone.xml")
 
     if (!jbossCfg.exists())
-      unzip(new File(
-        "%s/.ivy2/cache/io.escalante/escalante-dist/zips/escalante-dist-%s.zip/"
-          .format(home, version)), new File(tmpDir))
+      unzipEscalante(home, version)
+
+    // Remove Logging extension and subsystem to avoid issues with SBT logging
+    removeEscalanteLogging(jbossCfg)
+
+    println("Run Escalante %s from %s".format(version, jbossHomeDir.getAbsolutePath))
 
     // TODO: ALR, why not use 'jboss.home.dir' ? ServerEnvironment.HOME_DIR
     System.setProperty("jboss.home", jbossHomeDir.getAbsolutePath)
@@ -238,7 +237,7 @@ object EscalantePlugin extends Plugin {
     val pluginClassLoader = classOf[Manager].getClassLoader
     println("Arquillian class loader is: " + pluginClassLoader)
 
-    withClassLoader(pluginClassLoader) { Unit =>
+    withClassLoader(pluginClassLoader) { () =>
       // 1. Start arquillian manager
       val manager = ManagerBuilder.from()
         .extension(classOf[LoadableExtensionLoader]).create()
@@ -269,45 +268,71 @@ object EscalantePlugin extends Plugin {
 
   }
 
-  private def withClassLoader[T](cl: ClassLoader)(block: Unit => T): T = {
+  private def unzipEscalante(home: String, version: String) {
+    val tmpDir = new File(System.getProperty("java.io.tmpdir"))
+    val ivyEscalanteZip = new File(
+      "%s/.ivy2/cache/io.escalante/escalante-dist/zips/escalante-dist-%s.zip/"
+        .format(home, version))
+
+    if (ivyEscalanteZip.exists()) {
+      println("Unzip Escalante distribution in " + ivyEscalanteZip)
+      IO.unzip(ivyEscalanteZip, tmpDir)
+    } else {
+      if (version.endsWith("-SNAPSHOT")) {
+        println("Escalante version %s not available locally, download...".format(version))
+        val nexusRoot = "https://repository.jboss.org/nexus/content/groups/public"
+        val escalanteNexusRoot = "%s/io/escalante/escalante-dist/%s".format(nexusRoot, version)
+        val mavenMetadataFile = new File(tmpDir, "maven-metadata.xml")
+        val mavenMetadataUrl = new URL(
+          "%s/maven-metadata.xml".format(escalanteNexusRoot))
+
+        IO.download(mavenMetadataUrl, mavenMetadataFile)
+
+        val xml = XML.loadFile(mavenMetadataFile)
+        val timestamp = xml \\ "metadata" \\ "versioning" \\ "snapshot" \\ "timestamp"
+        val buildNumber = xml \\ "metadata" \\ "versioning" \\ "snapshot" \\ "buildNumber"
+        val snapshotLessVersion = version.substring(0, version.lastIndexOf('-'))
+        val escalanteSnapshotUrl = new URL("%s/escalante-dist-%s-%s-%s.zip"
+          .format(escalanteNexusRoot, snapshotLessVersion, timestamp.text, buildNumber.text))
+
+        println("Download and unzip Escalante snapshot from: " + escalanteSnapshotUrl)
+        IO.unzipURL(escalanteSnapshotUrl, tmpDir)
+      }
+    }
+  }
+
+  def removeEscalanteLogging(jbossCfg: File) {
+    val xmlCfg = XML.loadFile(jbossCfg)
+
+    val removeLoggingExtension = new RewriteRule {
+      override def transform(n: Node): NodeSeq = n match {
+        case e: Elem if e.label == "extension"
+          && (e \ "@module").text == "org.jboss.as.logging" => NodeSeq.Empty
+        case n => n
+      }
+    }
+
+    val removeLoggingSubsystem = new RewriteRule {
+      override def transform(n: Node): NodeSeq = n match {
+        case e: Elem if e.label == "subsystem"
+          && e.namespace.contains("jboss:domain:logging") => NodeSeq.Empty
+        case n => n
+      }
+    }
+
+    val loggingRemovedXml = new RuleTransformer(
+      removeLoggingExtension, removeLoggingSubsystem).transform(xmlCfg).head
+
+    XML.save(jbossCfg.getCanonicalPath, loggingRemovedXml, xmlDecl = true, doctype = null)
+  }
+
+  private def withClassLoader[T](cl: ClassLoader)(block: () => T): T = {
     val ctxClassLoader = Thread.currentThread().getContextClassLoader
     Thread.currentThread().setContextClassLoader(cl)
     try {
       block()
     } finally {
       Thread.currentThread().setContextClassLoader(ctxClassLoader)
-    }
-  }
-
-  private def unzip(file: File, target: File) {
-    val zip = new JarFile(file)
-    enumerationAsScalaIterator(zip.entries).foreach {
-      entry =>
-        val entryPath = entry.getName
-        println("Extracting to " + target.getCanonicalPath + "/" + entryPath)
-        if (entry.isDirectory) {
-          new File(target, entryPath).mkdirs
-        } else {
-          copy(zip.getInputStream(entry),
-            new FileOutputStream(new File(target, entryPath)))
-        }
-    }
-  }
-
-  private def copy(in: InputStream, out: OutputStream) {
-    try {
-      try {
-        val buffer = new Array[Byte](1024)
-        Iterator.continually(in.read(buffer))
-          .takeWhile(_ != -1)
-          .foreach {
-          out.write(buffer, 0, _)
-        }
-      } finally {
-        out.close()
-      }
-    } finally {
-      in.close()
     }
   }
 

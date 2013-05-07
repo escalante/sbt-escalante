@@ -7,23 +7,20 @@ import org.jboss.shrinkwrap.api.spec.WebArchive
 import java.net.URL
 import java.io.{BufferedInputStream, StringWriter}
 import scala.collection.JavaConversions._
+escalanteSettings
 
 version := "0.1"
 
-escalanteSettings
+scalaVersion := "2.9.1"
 
 liftWarName in liftWar := "helloworld-lift.war"
 
-// Testing with Scala 2.9.1 throws OOME perm space (even with massive max perm size)
-// Lift 2.4 not available for Scala 2.9.2, so stick to testing latest 2.5 milestone
-
-libraryDependencies ++= Seq(
-  "net.liftweb" %% "lift-webkit" % "2.5-M3" % "provided"
-)
-
-// Override lift version to generate a war that can be deployed in Escalante
-
 liftVersion in liftWar := Some("2.4")
+
+libraryDependencies <++= (liftVersion in liftWar) { lv: Option[String] => Seq(
+    "net.liftweb" %% "lift-webkit" % lv.get % "provided"
+  )
+}
 
 TaskKey[Unit]("check") <<= (target) map { (target) =>
   // 1. Open war file and print contents
