@@ -1,0 +1,6 @@
+# check if the file gets created
+> escalante-run
+$ exists target/play-run.yml
+
+# check the contents of the war
+> check
