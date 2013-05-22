@@ -52,7 +52,7 @@ TaskKey[Unit]("check") <<= (target) map { (target) =>
   // 3. Check lift and scala versions in descriptor
   val descriptor = new Yaml().load(war.get(descriptorPath).getAsset.openStream)
       .asInstanceOf[java.util.Map[String, Object]]
-  assert (descriptor.containsKey("lift"))
+  assert(descriptor.containsKey("lift"))
   val liftDescriptor = descriptor.get("lift")
       .asInstanceOf[java.util.Map[String, Object]]
   val liftVersion = liftDescriptor.get("version").toString

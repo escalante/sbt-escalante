@@ -14,7 +14,7 @@ import org.jboss.shrinkwrap.api.ShrinkWrap
 import org.jboss.shrinkwrap.api.spec.WebArchive
 import tools.nsc.io.Directory
 import java.io.FileInputStream
-import scala.xml.{Elem, NodeSeq, Node, XML}
+import scala.xml.{Elem, NodeSeq, XML}
 import sbt.File
 import scala.xml.transform.{RuleTransformer, RewriteRule}
 import scala.xml.Node
@@ -31,6 +31,11 @@ object EscalantePlugin extends Plugin {
     val liftVersion = SettingKey[Option[String]]("escalante-lift-version")
     val liftWebAppResources = SettingKey[File]("escalante-lift-webapp-resources")
     val liftCopyDependencies = TaskKey[Unit]("escalante-lift-copy-dependencies")
+
+    val playPackage = TaskKey[File]("escalante-play-package")
+    val playDescriptor = TaskKey[File]("escalante-play-descriptor")
+    val playName = SettingKey[String]("escalante-play-name")
+    val playOutputPath = SettingKey[File]("escalante-play-output-path")
 
     val escalanteRun = TaskKey[Unit]("escalante-run")
     val escalanteVersion = SettingKey[String]("escalante-version")
@@ -85,12 +90,45 @@ object EscalantePlugin extends Plugin {
             buildLiftWar(classDir, libsDir, warName, out, deps, liftVersion, webAppDir, scalaVersion)
     },
     escalanteVersion := "0.3.0-SNAPSHOT",
-    // Escalante run should be executed after lift war has been generated
-    liftWar in escalanteRun <<= (liftWar in liftWar),
-    escalanteRun <<= (liftWar in escalanteRun,
-        escalanteVersion in escalanteRun,
-        liftOutputPath in liftWar) map {
-      (test, version, deployment) => runEscalante(version, deployment)
+    // Library dependencies for run task to detected whether it's a Lift or Play app
+    Keys.libraryDependencies in escalanteRun <<= Keys.libraryDependencies,
+    // SBT state so that run task can execute other tasks
+    Keys.state in escalanteRun <<= Keys.state,
+
+    // Base directory for Play
+    Keys.baseDirectory in playDescriptor <<= Keys.baseDirectory,
+    // Play deploy name defaults to app name
+    playName in playDescriptor <<= Keys.name,
+    // Target folder used by Play
+    Keys.target in playDescriptor <<= Keys.target,
+    // Default output path is target / appName.yml
+    playOutputPath in playDescriptor <<=
+      (Keys.target in playDescriptor, playName in playDescriptor) {
+        (t, s) => t / (s + ".yml")
+      },
+    // Application needs to be packaged before the descriptor can be constructed
+    Keys.`package` in playDescriptor <<= (Keys.`package` in Compile),
+    // Package Play app task
+    playPackage <<= (Keys.`package` in playDescriptor),
+    // Check library dependencies to figure out building instructions
+    Keys.libraryDependencies in playDescriptor <<= Keys.libraryDependencies,
+    // Play descriptor build task
+    playDescriptor <<= (
+        playName in playDescriptor,
+        Keys.target in playDescriptor,
+        playOutputPath in playDescriptor,
+        Keys.baseDirectory in playDescriptor,
+        Keys.libraryDependencies in playDescriptor
+        ) map {
+      (name, target, path, baseDirectory, deps) =>
+          buildPlayDescriptor(name, target, path, baseDirectory, deps)
+    },
+
+    // Escalante run task
+    escalanteRun <<= (escalanteVersion in escalanteRun,
+        Keys.libraryDependencies in escalanteRun,
+        Keys.state in escalanteRun) map {
+      (version, deps, state) => runEscalante(version, deps, state)
     }
   )
 
@@ -108,7 +146,7 @@ object EscalantePlugin extends Plugin {
       addWebInfClasses(war, classDir)
       addWebResources(war, webAppDir)
       addWebInfLibs(war, libsDir)
-      val extraModules = extractExtraModules(deps)
+      val extraModules = extractExtraLiftModules(deps)
       val liftVersion = liftVersionOverride match {
         case Some(version) => liftVersionOverride
         case None =>
@@ -135,7 +173,7 @@ object EscalantePlugin extends Plugin {
     }
   }
 
-  private def extractExtraModules(deps: Seq[ModuleID]): Seq[String] = {
+  private def extractExtraLiftModules(deps: Seq[ModuleID]): Seq[String] = {
     deps.filter(_.organization == "net.liftweb")
       .filter(_.name != "lift-webkit")
       .map(_.name.substring("lift-".length)).toSeq
@@ -146,9 +184,7 @@ object EscalantePlugin extends Plugin {
       scalaVersion: String,
       extraModules: Seq[String]): String = {
     val separator = System.getProperty("line.separator")
-    val modulesAsString = extraModules.map { moduleName =>
-      """|     - %s""".format(moduleName).stripMargin
-    }
+    val modulesList = modulesAsString(extraModules)
 
     (liftVersion, extraModules) match {
       case (None, Nil) =>
@@ -170,7 +206,7 @@ object EscalantePlugin extends Plugin {
           | lift:
           |   modules: %s
         """.format(scalaVersion,
-          modulesAsString.mkString).stripMargin
+          modulesList.mkString).stripMargin
       case (Some(lv), List(_*)) =>
         """
           | scala:
@@ -179,7 +215,13 @@ object EscalantePlugin extends Plugin {
           |   version: %s
           |   modules: %s
         """.format(scalaVersion, lv,
-          separator + modulesAsString.mkString(separator)).stripMargin
+          separator + modulesList.mkString(separator)).stripMargin
+    }
+  }
+
+  private def modulesAsString(extraModules: Seq[String]): Seq[String] = {
+    extraModules.map { moduleName =>
+      """|     - %s""".format(moduleName).stripMargin
     }
   }
 
@@ -213,6 +255,82 @@ object EscalantePlugin extends Plugin {
     updateReport.select(configurationFilter("runtime"))
       .filter(f => NotProvidedByServerRegex.findFirstIn(f.getName).isDefined)
       .foreach(f => IO.copyFile(f, libDir / f.getName, preserveLastModified = true))
+  }
+
+  def buildPlayDescriptor(name: String, target: File, path: File,
+        baseDirectory: File, deps: Seq[ModuleID]): File = {
+    val extraModules = extractExtraPlayModules(deps)
+    val modulesList = modulesAsString(extraModules)
+    val separator = System.getProperty("line.separator")
+
+    val descriptor = extraModules match {
+      case Nil =>
+        """
+          | play:
+          |   path: %s
+        """.format(baseDirectory.getAbsolutePath).stripMargin
+      case List(_*) =>
+        """
+          | play:
+          |   path: %s
+          |   modules: %s
+        """.format(baseDirectory.getAbsolutePath,
+          separator + modulesList.mkString(separator)).stripMargin
+    }
+
+    if (!target.exists())
+      target.mkdirs()
+
+    printToFile(path)(p => {
+      descriptor.linesIterator.foreach(p.println(_))
+    })
+
+    path
+  }
+
+  def printToFile(f: java.io.File)(op: java.io.PrintWriter => Unit) {
+    // Create file if it does not exist
+    if (!f.exists())
+      f.createNewFile()
+
+    val p = new java.io.PrintWriter(f)
+    try { op(p) } finally { p.close() }
+  }
+
+  def runEscalante(version: String, deps: Seq[ModuleID], state: State) {
+    val isLiftApp = deps.filter(_.organization == "net.liftweb").headOption
+    isLiftApp match {
+      case Some(l) =>
+        println("Lift app detected, create war")
+        val deployment = runEscalanteTask(state, liftWar, "Lift war building did not complete")
+        runEscalante(version, deployment)
+      case None =>
+        val isPlayApp = deps.filter(_.organization == "play").headOption
+        isPlayApp match {
+          case Some(p) =>
+            println("Play app detected, package jar")
+            runEscalanteTask(state, playPackage, "Play jar packaging failed")
+            println("Play app detected, build descriptor")
+            val deployment = runEscalanteTask(
+              state, playDescriptor, "Play descriptor construction failed")
+            runEscalante(version, deployment)
+          case None =>
+            println("Unknown application type detected")
+        }
+    }
+  }
+
+  private def extractExtraPlayModules(deps: Seq[ModuleID]): Seq[String] =
+    deps.filter(_.organization == "play")
+      .filter(m => m.name != "play" && m.name != "play-test")
+      .map(_.name).toSeq
+
+  private def runEscalanteTask[T](state: State, task: TaskKey[T], errorMsg: String) : T = {
+    val taskEither = Project.runTask(task, state).get._2.toEither
+    taskEither.right.toOption.getOrElse {
+      state.log.warn(errorMsg)
+      throw taskEither.left.get
+    }
   }
 
   def runEscalante(version: String, deployment: File) {
@@ -308,7 +426,7 @@ object EscalantePlugin extends Plugin {
       override def transform(n: Node): NodeSeq = n match {
         case e: Elem if e.label == "extension"
           && (e \ "@module").text == "org.jboss.as.logging" => NodeSeq.Empty
-        case n => n
+        case x => x
       }
     }
 
@@ -316,7 +434,7 @@ object EscalantePlugin extends Plugin {
       override def transform(n: Node): NodeSeq = n match {
         case e: Elem if e.label == "subsystem"
           && e.namespace.contains("jboss:domain:logging") => NodeSeq.Empty
-        case n => n
+        case x => x
       }
     }
 

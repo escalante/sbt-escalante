@@ -1,0 +1,6 @@
+# check if the file gets created
+> escalante-play-descriptor
+$ exists target/play-modules-gen.yml
+
+# check the contents of the war
+> check

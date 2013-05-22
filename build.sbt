@@ -34,8 +34,12 @@ ScriptedPlugin.scriptedSettings
 scriptedBufferLog := false
 
 // Tests require more resources than those by default
-scriptedLaunchOpts ++= Seq("-Xmx1024M", "-XX:MaxPermSize=256M")
-// scriptedLaunchOpts ++= Seq("-Xmx1024M", "-XX:MaxPermSize=256M", "-Xrunjdwp:transport=dt_socket,address=7979,server=y,suspend=y")
+// scriptedLaunchOpts ++= Seq("-Xmx1024M", "-XX:MaxPermSize=256M")
+scriptedLaunchOpts ++= Seq(
+   // "-Xrunjdwp:transport=dt_socket,address=7979,server=y,suspend=y",
+   // "-Djava.util.logging.config.file=[PATH-TO]/escalante-logging.properties",
+   "-Xmx1024M", "-XX:MaxPermSize=256M"
+)
 
 publishTo <<= version { (v: String) =>
   val nexus = "https://repository.jboss.org/nexus/"
