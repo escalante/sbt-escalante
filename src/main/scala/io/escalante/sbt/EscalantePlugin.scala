@@ -89,7 +89,7 @@ object EscalantePlugin extends Plugin {
       (test, copyDeps, libsDir, classDir, warName, out, deps, liftVersion, webAppDir, scalaVersion) =>
             buildLiftWar(classDir, libsDir, warName, out, deps, liftVersion, webAppDir, scalaVersion)
     },
-    escalanteVersion := "0.3.0-SNAPSHOT",
+    escalanteVersion := "0.3.0",
     // Library dependencies for run task to detected whether it's a Lift or Play app
     Keys.libraryDependencies in escalanteRun <<= Keys.libraryDependencies,
     // SBT state so that run task can execute other tasks

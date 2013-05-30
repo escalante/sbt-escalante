@@ -8,7 +8,7 @@ name := "sbt-escalante"
 
 organization := "io.escalante.sbt"
 
-version := "0.2.0-SNAPSHOT"
+version := "0.2.0"
 
 resolvers += "JBoss repository" at "http://repository.jboss.org/nexus/content/groups/public/"
 
@@ -17,7 +17,7 @@ resolvers += "Project Odd repository" at "http://repository-projectodd.forge.clo
 libraryDependencies ++= Seq(
 	"org.jboss.shrinkwrap" % "shrinkwrap-api" % "1.0.1",
 	"org.jboss.shrinkwrap" % "shrinkwrap-impl-base" % "1.0.1",
-   "io.escalante" % "escalante-dist" % "0.3.0-SNAPSHOT" artifacts(Artifact("escalante-dist", "zip", "zip")),
+   "io.escalante" % "escalante-dist" % "0.3.0" artifacts(Artifact("escalante-dist", "zip", "zip")),
    "org.jboss.as" % "jboss-as-arquillian-container-embedded" % "7.x.incremental.667",
    "org.jboss.arquillian.core" % "arquillian-core-api" % "1.0.0.Final",
    "org.jboss.arquillian.core" % "arquillian-core-spi" % "1.0.0.Final",
