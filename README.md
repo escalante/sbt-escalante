@@ -21,7 +21,7 @@ to `project/build.sbt`:
        "Project Odd repository" at "http://repository-projectodd.forge.cloudbees.com/upstream/"
     )
 
-    addSbtPlugin("io.escalante.sbt" % "sbt-escalante" % "0.1.2")
+    addSbtPlugin("io.escalante.sbt" % "sbt-escalante" % "0.2.0")
 
 Now, add the following to your root `build.sbt` file:
 
@@ -66,7 +66,7 @@ where it will deploy the war archive.
 
 The following options are configurable:
 
-* `escalanteVersion := "0.2.0"`:
+* `escalanteVersion := "0.3.0"`
 defines the Escalante version in which to run the Lift application
 (default value shown).
 
