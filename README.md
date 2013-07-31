@@ -11,17 +11,20 @@ Escalante requires SBT version `0.12.x` or higher.
 ### Set up Escalante SBT plugin in your project
 
 To add Escalante SBT plugin to your build, add the following
-to `project/build.sbt`:
+to `project/project/Pluings.sbt`:
 
     import sbt._
-    import sbt.Keys._
+    import Keys._
 
-    resolvers ++= Seq(
-       "JBoss repository" at "http://repository.jboss.org/nexus/content/groups/public/",
-       "Project Odd repository" at "http://repository-projectodd.forge.cloudbees.com/upstream/"
-    )
+    object Plugins extends Build {
 
-    addSbtPlugin("io.escalante.sbt" % "sbt-escalante" % "0.2.0")
+    lazy val pluginProject = Project("plugins", file(".")).settings(
+      resolvers ++= Seq(
+        "JBoss repository" at "http://repository.jboss.org/nexus/content/groups/public/",
+        "Project Odd repository" at "http://repository-projectodd.forge.cloudbees.com/upstream/")
+      ).dependsOn(sbtEscalante)
+
+    lazy val sbtEscalante = uri("git://github.com/escalante/sbt-escalante.git#0.2.0")
 
 Now, add the following to your root `build.sbt` file:
 
